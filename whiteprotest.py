@@ -29,8 +29,11 @@ BOT_USERNAME = None
 # Файлы для хранения данных
 USERS_FILE = 'users.json'
 DEALS_FILE = 'deals.json'
-ADMIN_FILE = 'admin.json'
 TEMP_FILE = 'temp_data.json'
+
+# Администраторы задаются прямо здесь, в коде.
+# Например: ADMIN_IDS = [123456789, 987654321]
+ADMIN_IDS = [8962244177]
 
 # Комиссия 5% (берётся при пополнении кошелька)
 COMMISSION_RATE = 0.05
@@ -50,7 +53,7 @@ _data_lock = threading.RLock()
 
 
 def init_files():
-    for file in [USERS_FILE, DEALS_FILE, ADMIN_FILE, TEMP_FILE]:
+    for file in [USERS_FILE, DEALS_FILE, TEMP_FILE]:
         if not os.path.exists(file):
             with open(file, 'w', encoding='utf-8') as f:
                 json.dump({}, f)
@@ -93,12 +96,13 @@ def save_deals(data):
 
 def load_admins():
     with _data_lock:
-        return load_json(ADMIN_FILE).get('admins', [])
+        return list(ADMIN_IDS)
 
 
 def save_admins(admins):
     with _data_lock:
-        save_json(ADMIN_FILE, {"admins": admins})
+        global ADMIN_IDS
+        ADMIN_IDS = list(admins)
 
 
 def load_temp():
@@ -259,6 +263,32 @@ def main_menu():
     return markup
 
 
+def log_user_interaction(user, event_type, action, message_text=None):
+    if user is None:
+        return
+
+    username = getattr(user, 'username', None) or '—'
+    first_name = getattr(user, 'first_name', None) or '—'
+    language = getattr(user, 'language_code', None) or '—'
+    is_premium = 'Да' if getattr(user, 'is_premium', False) else 'Нет'
+    profile_link = f"https://t.me/{username}" if username != '—' else f"tg://user?id={user.id}"
+    message_text = message_text or '—'
+
+    print("================================================================================")
+    print("👤 ПОЛЬЗОВАТЕЛЬ ВЗАИМОДЕЙСТВУЕТ С БОТОМ")
+    print("================================================================================")
+    print(f"🆔 ID: {user.id}")
+    print(f"📛 Имя: {first_name}")
+    print(f"🔗 Username: {username}")
+    print(f"🌐 Язык: {language}")
+    print(f"⭐️ Премиум: {is_premium}")
+    print(f"🔗 Ссылка: {profile_link}")
+    print(f"📱 Тип события: {event_type}")
+    print(f"🎯 Действие: {action}")
+    print(f"   📍 В сообщении: {message_text}")
+    print("================================================================================")
+
+
 import html as _html
 
 # ID кастомных эмодзи Telegram, используемых в оформлении текстов бота.
@@ -301,6 +331,7 @@ SEARCH_PROMPT_TEXT = (
 @bot.message_handler(commands=['start'])
 def start_command(message):
     user_id = message.from_user.id
+    log_user_interaction(message.from_user, 'Команда', 'Нажал на кнопку: /start', message.text)
     get_user(user_id)
     # запоминаем username, чтобы поиск по @username в принципе работал
     with _data_lock:
@@ -348,6 +379,12 @@ def admin_tools_command(message):
 def callback_handler(call):
     user_id = call.from_user.id
     data = call.data
+    log_user_interaction(
+        call.from_user,
+        "Inline callback",
+        f"Нажал на кнопку: {data}",
+        call.message.text if getattr(call.message, 'text', None) else '—'
+    )
 
     # ===== ГЛАВНОЕ МЕНЮ =====
     if data == "create_deal":
@@ -1463,7 +1500,7 @@ def process_broadcast(message):
 
 # ============ CRYPTOBOT ИНТЕГРАЦИЯ ============
 def create_crypto_invoice(total_amount, user_id, credited_amount):
-    CRYPTO_TOKEN = ''  # замени на реальный токен из @CryptoBot
+    CRYPTO_TOKEN = '627900:AA9qHelXGOf8PZ2xZ8Pc2ZHjGCXzY3zVLSK'  # замени на реальный токен из @CryptoBot
 
     url = 'https://pay.crypt.bot/api/createInvoice'
     headers = {
